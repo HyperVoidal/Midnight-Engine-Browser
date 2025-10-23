@@ -1,0 +1,1 @@
+INSERT INTO database (Username, Password, Accountname, IDimage) VALUES ('Æther', 'thepassword123', 'Æther', 'https://i.ibb.co/nMNHJCHw/ther-Eyebrow-Raise.png')
