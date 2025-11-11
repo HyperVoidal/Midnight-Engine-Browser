@@ -234,7 +234,8 @@ class Browser(QMainWindow):
         # simple preset colours
         for name, rgb in [("Blue", (0, 0, 255)), ("Red", (255, 0, 0)), ("Green", (0, 255, 0))]:
             act = QAction(name, self)
-            act.triggered.connect(lambda checked=False, btn=button, c=rgb: self.setButtonColour(btn, c))
+            btn = self.contextButtonSelected
+            act.triggered.connect(lambda checked=False, c=rgb: self.setButtonColour(self.contextButtonSelected, c))
             colour_menu.addAction(act)
 
         # colour wheel (QColorDialog)
@@ -392,7 +393,7 @@ class Browser(QMainWindow):
         # Predefined palette choices
         for name, rgb in [("Blue", (0,0,255)), ("Red", (255,0,0)), ("Green", (0,255,0))]:
             action = QAction(name, self)
-            action.triggered.connect(lambda checked=False, b = self.contextButtonSelected, c=rgb: self.setButtonColour(b, c))
+            action.triggered.connect(lambda checked=False, c=rgb: self.setButtonColour(self.contextButtonSelected, rgb))
             colour_menu.addAction(action)
 
         # A custom colour chooser (the “wheel”)
