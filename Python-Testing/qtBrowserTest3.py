@@ -103,12 +103,13 @@ class Browser(QMainWindow):
         self.ColourPalette_btn.setToolTip("Colour Palettes")
         ColourMenu = QMenu(self)
 
+        #define starter profile
+        self.selectedprofile = 'profile1'
+
         with open (f"{self.main_path}/colourProfiles.json", "r") as f:
             Colourdata = dict(json.load(f))
         
-        for profile in range(len(Colourdata)):
-            dictions = [[k,v] for k,v in Colourdata.items()]
-            self.selectedprofile = str(dictions[profile][0])
+        for key in Colourdata.keys():
             # Widgets for Menu Items
             Cwidget = QWidget()
             Clayout = QHBoxLayout(Cwidget)
@@ -116,25 +117,25 @@ class Browser(QMainWindow):
             Clayout.setSpacing(5)
 
             #Add text
-            Ctext_label = QLabel(self.selectedprofile.capitalize())
+            Ctext_label = QLabel(key.capitalize())
             Clayout.addWidget(Ctext_label)
 
             #Create Widget Action
             Cwidget_action = QWidgetAction(self)
             Cwidget_action.setDefaultWidget(Cwidget)
-            Cwidget_action.setData((self.selectedprofile))
-            Cwidget_action.triggered.connect(lambda checked, p=self.selectedprofile, d=Colourdata: self.SelectColourTheme(p, d))
+            Cwidget_action.setData(key)
+            Cwidget_action.triggered.connect(lambda checked, p=key, d=Colourdata: self.SelectColourTheme(p, d))
             ColourMenu.addAction(Cwidget_action)
         
         self.ColourPalette_btn.setMenu(ColourMenu)
         self.ColourPalette_btn.setIcon(get_normIcon("colourPalette", inv))
 
-        self.ColourPalette_btn.clicked.connect(lambda checked, p=self.selectedprofile, d=Colourdata: self.ToggleColourTheme(p, d))
+        # When the main button is clicked, read the current selectedprofile at click time
+        self.ColourPalette_btn.clicked.connect(lambda checked=False, d=Colourdata: self.ToggleColourTheme(self.selectedprofile, d))
 
         self.ColourPalette_btn.setPopupMode(QToolButton.MenuButtonPopup)
         self.nav_bar.addWidget(self.ColourPalette_btn)
-        #define starter profile
-        self.selectedprofile = 'profile1'
+        
 
 
         #engine system
@@ -316,20 +317,35 @@ class Browser(QMainWindow):
         self.engine_btn.setIcon(get_favicon(key, engines[key][1]))
     
     def SelectColourTheme(self, profile, themes):
-        components = dict(themes[profile])
-        print(components)
+        self.selectedprofile = profile
 
-        pass
+        self.ColourPalette_btn.setToolTip(f"Colour Palettes (currently {profile})")
+
+        print(f"Colour Profile Switched to {profile}")
+
+
+
+
 
     def ToggleColourTheme(self, profile, themes):
-        print(profile)
-        pass
+        colourkeys = list(themes.keys())
+        keyselect = colourkeys.index(profile)
+        next_index = (keyselect + 1) % len(colourkeys)
+        next_profile = colourkeys[next_index]
+        
+        self.selectedprofile = next_profile
+        #all colour profile change handling is done in SelectColourTheme function to reduce total lines
+        self.SelectColourTheme(next_profile, themes)
 
-    
+        
+
+
 
     #system for when I implement the main colourtheme editor
     def ColourThemeEditor(self):
         pass
+    
+
     
 if __name__ == "__main__":#
     app = QApplication(sys.argv)
