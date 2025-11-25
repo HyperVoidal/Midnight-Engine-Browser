@@ -1,5 +1,5 @@
 import sys
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QUrl 
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -82,12 +82,21 @@ def get_normIcon(name, inv):
 #change this to change search browser for normal text entry. MAKE A DROPDOWN TO CHANGE THIS LATER
 engine = engines['brave'][0]
 
+
+class ToolButton(QToolButton):
+    def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            print("Right click:", self.toolTip())
+        return super().mousePressEvent(event)
+
+
 class Browser(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Midnight")
         self.resize(1200, 800)
         self.contextButtonSelected = None
+        self.RCButtonName = None
         self.url_bar = QLineEdit()
 
         
@@ -106,20 +115,24 @@ class Browser(QMainWindow):
         nav_bar.setStyleSheet("background:rgb(1, 1, 100)")
 
 
-        back_btn = QToolButton(self)
+        back_btn = ToolButton(self)
+        back_btn.setText("back")
+        back_btn.setToolTip("Back")
         back_btn.clicked.connect(self.current_browser.back)
         nav_bar.addWidget(back_btn)
         back_btn.setIcon(get_normIcon("back_button", inv))
-        back_btn.setContextMenuPolicy(Qt.CustomContextMenu)
-        back_btn.customContextMenuRequested.connect(lambda pos, b=back_btn: self.show_icon_menu(b, pos))
 
 
-        forward_btn = QToolButton(self)
+        forward_btn = ToolButton(self)
+        forward_btn.setText("Forward")
+        forward_btn.setToolTip("Forward")
         forward_btn.clicked.connect(self.current_browser.forward)
         nav_bar.addWidget(forward_btn)
         forward_btn.setIcon(get_normIcon("forward_button", inv))
 
-        self.reload_btn = QToolButton(self)
+        self.reload_btn = ToolButton(self)
+        self.reload_btn.setText("Reload")
+        self.reload_btn.setToolTip("Reload")
         self.reload_btn.setIcon(get_normIcon("reload", inv))
         self.reload_btn.clicked.connect(self.current_browser.reload)
         nav_bar.addWidget(self.reload_btn)
@@ -132,24 +145,28 @@ class Browser(QMainWindow):
         self.current_browser.loadFinished.connect(self.stop_reload_animation)
         
 
-        home_btn = QAction("Home", self)
-        home_btn.triggered.connect(lambda: self.current_browser.setUrl(QUrl.fromLocalFile(str(home_path))))
-        nav_bar.addAction(home_btn)
+        home_btn = ToolButton(self)
+        home_btn.setText("Home")
+        home_btn.setToolTip("Home")
+        home_btn.clicked.connect(lambda: self.current_browser.setUrl(QUrl.fromLocalFile(str(home_path))))
+        nav_bar.addWidget(home_btn)
         home_btn.setIcon(get_normIcon("home", inv))
 
 
-        self.newtab_btn = QToolButton(self)
+        self.newtab_btn = ToolButton(self)
+        self.newtab_btn.setText("New Tab")
+        self.newtab_btn.setToolTip("NewTab")
         self.newtab_btn.setIcon(get_normIcon("newtab", inv))
         self.newtab_btn.clicked.connect(lambda: self.add_new_tab(QUrl.fromLocalFile(str(home_path)), "Home"), "New Tab")
         nav_bar.addWidget(self.newtab_btn)
 
 
         
-        self.colourTheme_btn = QToolButton(self)
-        self.colourTheme_btn.setText("Colours")
+        self.colourTheme_btn = ToolButton(self)
+        self.colourTheme_btn.setToolTip("ColourTheme")
+        self.colourTheme_btn.setText("Colour Themes")
         self.colourTheme_btn.setIcon(get_normIcon("colourPallete", inv))
 
-        #this isn't working for some reason. It just shows the button, no dropdown menu. Loads json data correctly but nothing else
         Cmenu = QMenu(self)
         with open (f"{Path(__file__).parent}/colourProfiles.json", 'r') as datafile:
             colourPalletes = json.load(datafile)
@@ -223,28 +240,30 @@ class Browser(QMainWindow):
 
         self.current_browser.urlChanged.connect((lambda q: self.url_bar.setText(q.toString())))
 
-    def show_icon_menu(self, button, pos):
+    def show_icon_menu(self, pos):
         menu = QMenu(self)
 
         colour_menu = QMenu("Colour", self)
         menu.addMenu(colour_menu)
 
-        self.contextButtonSelected = button
+        self.contextButtonSelected = self.sender()
+        btn = self.contextButtonSelected
+        self.RCButtonName = self.sender().text()
+        print(f"Right Clicked: {self.RCButtonName}")
+        print(f"Right Clicked: {self.contextButtonSelected.text()}")
         
         # simple preset colours
         for name, rgb in [("Blue", (0, 0, 255)), ("Red", (255, 0, 0)), ("Green", (0, 255, 0))]:
             act = QAction(name, self)
-            btn = self.contextButtonSelected
-            act.triggered.connect(lambda checked=False, c=rgb: self.setButtonColour(self.contextButtonSelected, c))
+            act.triggered.connect(lambda checked=False, c=rgb, b=self.RCButtonName: self.setButtonColour(b, c))
             colour_menu.addAction(act)
 
         # colour wheel (QColorDialog)
         custom = QAction("Custom...", self)
-        self.contextButtonSelected = button
-        custom.triggered.connect(self.pick_button_colour)
+        custom.triggered.connect(lambda checked=False, b=RCButtonName: self.pick_button_colour(b))
         colour_menu.addAction(custom)
 
-        menu.exec(button.mapToGlobal(pos))
+        menu.exec(btn.mapToGlobal(pos))
 
 
     def rotate_reload_icon(self):
@@ -393,18 +412,18 @@ class Browser(QMainWindow):
         # Predefined palette choices
         for name, rgb in [("Blue", (0,0,255)), ("Red", (255,0,0)), ("Green", (0,255,0))]:
             action = QAction(name, self)
-            action.triggered.connect(lambda checked=False, c=rgb: self.setButtonColour(self.contextButtonSelected, rgb))
+            action.triggered.connect(lambda checked=False, b=self.RCButtonName, c=rgb: self.setButtonColour(b, rgb))
+            print("settingbutton colour")
             colour_menu.addAction(action)
 
-        # A custom colour chooser (the “wheel”)
+        # Custom colour chooser
         custom_action = QAction("Custom…", self)
-        custom_action.triggered.connect(self.pick_button_colour)
+        custom_action.triggered.connect(lambda checked=False, b=self.RCButtonName: self.pick_button_colour(b))
         colour_menu.addAction(custom_action)
 
         menu.exec(event.globalPos())
 
-    def pick_button_colour(self):
-        button = self.contextButtonSelected
+    def pick_button_colour(self, button):
         colour = QColorDialog.getColor()
         if colour.isValid():
             rgb = (colour.red(), colour.green(), colour.blue())
@@ -413,7 +432,6 @@ class Browser(QMainWindow):
 
     def setButtonColour(self, button, rgb):
         print(button)
-        print(self.contextButtonSelected)
         #recolour logic
         print(f"Recoloring {button} with {rgb}")
         pass
@@ -433,6 +451,7 @@ class Browser(QMainWindow):
 
     def setColourPallete(self, Name, data):
         pass
+
 
 
 if __name__ == "__main__":#
