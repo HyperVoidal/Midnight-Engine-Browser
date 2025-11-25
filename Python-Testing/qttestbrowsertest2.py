@@ -413,7 +413,6 @@ class Browser(QMainWindow):
         for name, rgb in [("Blue", (0,0,255)), ("Red", (255,0,0)), ("Green", (0,255,0))]:
             action = QAction(name, self)
             action.triggered.connect(lambda checked=False, b=self.RCButtonName, c=rgb: self.setButtonColour(b, rgb))
-            print("settingbutton colour")
             colour_menu.addAction(action)
 
         # Custom colour chooser
