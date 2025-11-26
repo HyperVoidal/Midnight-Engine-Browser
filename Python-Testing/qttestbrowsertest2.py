@@ -120,7 +120,7 @@ class Browser(QMainWindow):
         back_btn.setToolTip("Back")
         back_btn.clicked.connect(self.current_browser.back)
         nav_bar.addWidget(back_btn)
-        back_btn.setIcon(get_normIcon("back_button", inv))
+        back_btn.setIcon(get_normIcon("back", inv))
 
 
         forward_btn = ToolButton(self)
@@ -128,7 +128,7 @@ class Browser(QMainWindow):
         forward_btn.setToolTip("Forward")
         forward_btn.clicked.connect(self.current_browser.forward)
         nav_bar.addWidget(forward_btn)
-        forward_btn.setIcon(get_normIcon("forward_button", inv))
+        forward_btn.setIcon(get_normIcon("forward", inv))
 
         self.reload_btn = ToolButton(self)
         self.reload_btn.setText("Reload")

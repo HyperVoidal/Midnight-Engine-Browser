@@ -44,13 +44,22 @@ def get_normIcon(name, inv):
 
 engines = {
     "ecosia": ("https://www.ecosia.org/search?q=", "https://www.ecosia.org/favicon.ico"),
-    "google": ("https://www.google.com/search?q=", "https://www.google.com/favicon.ico"),
+    "google": ("https://www.google.com/search?udm=14&q=", "https://www.google.com/favicon.ico"),
     "brave": ("https://search.brave.com/search?q=", "https://brave.com/favicon.ico"),
     "duckduckgo": ("https://duckduckgo.com/search?q=", "https://duckduckgo.com/favicon.ico")
 }
 
 #starter engine
 engine = engines['brave'][0]
+
+def ButtonConstructor(name, tooltip, icon, link):
+    Browser.name = QToolButton(Browser)
+    Browser.name.setToolTip(tooltip)
+    Browser.name.setIcon(get_normIcon(icon, inv))
+    Browser.nav_bar.addWidget(Browser.name)
+    Browser.name.clicked.connect(Browser.current_browser.link)
+
+# call buttonconstructor as (example) back = ButtonConstructor("back_btn", "Back", "back", "back")
 
 class Browser(QMainWindow):
     def __init__(self):
@@ -59,44 +68,37 @@ class Browser(QMainWindow):
         self.resize(1200, 800)
         self.url_bar = QLineEdit()
 
-        home_path = Path(__file__).parent / "homepage.html"
+        self.home_path = Path(__file__).parent / "homepage.html"
         self.tabs  = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.currentChanged.connect(self.switch_tab)
         self.setCentralWidget(self.tabs)
-        self.add_new_tab(QUrl.fromLocalFile(str(home_path)), "Home")
+        self.add_new_tab(QUrl.fromLocalFile(str(self.home_path)), "Home")
 
         self.nav_bar = QToolBar("Navigation")
         self.addToolBar(self.nav_bar)
         self.nav_bar.setMovable(False)
         self.nav_bar.setStyleSheet("background:rgb(1, 1, 100)")
+        
 
         #buttons
-        self.back_btn = QToolButton(self)
-        self.back_btn.setToolTip("Back")
-        self.nav_bar.addWidget(self.back_btn)
 
-        self.reload_btn = QToolButton(self)
-        self.reload_btn.setToolTip("Reload")
-        self.nav_bar.addWidget(self.reload_btn)
+        self.ButtonConstructor("back_btn", "Back", "back", "go_back")
+        self.ButtonConstructor("reload_btn", "Reload", "reload", "reload_page")
+        self.ButtonConstructor("forward_btn", "Forward", "forward", "go_forward")
+        self.ButtonConstructor("home_btn", "Home", "home", "go_home")
+        self.ButtonConstructor("newtab_btn", "New Tab", "newtab", "new_tab")
+        self.ButtonConstructor("colourtheme_btn", "Colour Themes", "colourPallete", "colour_themes")
 
-        self.forward_btn = QToolButton(self)
-        self.forward_btn.setToolTip("Forward")
-        self.nav_bar.addWidget(self.forward_btn)
+        #reload animation components
+        self.rotation_angle = 0
+        self.rotation_timer = QTimer()
+        self.rotation_timer.timeout.connect(self.rotate_reload_icon)
+        self.current_browser.loadStarted.connect(self.start_reload_animation)
+        self.current_browser.loadFinished.connect(self.stop_reload_animation)
 
-        self.home_btn = QToolButton(self)
-        self.home_btn.setToolTip("Home")
-        self.nav_bar.addWidget(self.home_btn)
-
-        self.newtab_btn = QToolButton(self)
-        self.newtab_btn.setToolTip("NewTab")
-        self.nav_bar.addWidget(self.newtab_btn)
-
-        self.colourtheme_btn = QToolButton(self)
-        self.colourtheme_btn.setToolTip("ColourTheme")
-        self.nav_bar.addWidget(self.colourtheme_btn)
-
+        #engine system
         self.engine = engine
         self.engine_btn = QToolButton(self)
         self.engine_btn.setText("Search With...")
@@ -144,7 +146,33 @@ class Browser(QMainWindow):
 
         self.current_browser.urlChanged.connect((lambda q: self.url_bar.setText(q.toString())))
 
+    def ButtonConstructor(self, name, tooltip, icon, handler_name):
+        """Creates all buttons for navbar"""
+        btn = QToolButton(self)
+        btn.setToolTip(tooltip)
+        btn.setIcon(get_normIcon(icon, inv))
+        self.nav_bar.addWidget(btn)
 
+        #Dynamically attach button to object data
+        setattr(self, name, btn)
+
+        #Connect to class method
+        if hasattr(self, handler_name):
+            btn.clicked.connect(getattr(self, handler_name))
+        else:
+            print(f"WARNING! Handler name {handler_name} not found")
+        
+        return btn
+
+    #button assignment functions
+    def go_back(self): self.current_browser.back()
+    def reload_page(self): self.current_browser.reload()
+    def go_forward(self): self.current_browser.forward()
+    def go_home(self): self.current_browser.setUrl(QUrl.fromLocalFile(str(self.home_path)))
+    def new_tab(self): self.add_new_tab(QUrl.fromLocalFile(str(self.home_path)), "Home")
+    def colour_themes(self): print("TODO: toggle theme")
+
+    #reload icon animations
     def rotate_reload_icon(self):
         """Rotate the reload icon continuously"""
         self.rotation_angle = (self.rotation_angle + 10) % 360
@@ -188,7 +216,7 @@ class Browser(QMainWindow):
 
         
         if qurl.toString().endswith("homepage.html"):
-            self.url_bar.setText("")
+            self.url_bar.setText("Homepage")
         return browser
     
     def close_tab(self, index):
@@ -202,6 +230,9 @@ class Browser(QMainWindow):
         if current_browser:
             self.current_browser = current_browser
             self.url_bar.setText(current_browser.url().toString())
+            if current_browser.url().toString().endswith("homepage.html"):
+                self.url_bar.setText("Homepage")
+            
 
     def update_tab_title(self, browser, title=None):
         i = self.tabs.indexOf(browser)
@@ -214,8 +245,8 @@ class Browser(QMainWindow):
             if len(title) > 60:
                 title = title[:57] + "..."
             
-            if title == 'homepage.html':
-                title = 'Home'
+            if title.endswith('homepage.html'):
+                title = 'Homepage'
 
             self.tabs.setTabText(i, title)
 
@@ -234,6 +265,9 @@ class Browser(QMainWindow):
             print(fullurl)
         
         self.current_browser.setUrl(QUrl(fullurl))
+    
+    def on_load_finished(self):
+        pass
     
     def set_engine(self, key, value):
         global engine
