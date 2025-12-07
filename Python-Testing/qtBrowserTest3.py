@@ -18,46 +18,40 @@ import json
 icon_cache_dir = Path(__file__).parent / "icon_cache"
 icon_cache_dir.mkdir(exist_ok=True)
 
-inv = True
 
-#pull icons and insert into cache
-def get_favicon(name, favicon_url):
-    """Download and cache favicon, return QIcon"""
-    icon_path = icon_cache_dir / f"{name}.ico"
-    
-    # Download icon if not cached
-    if not icon_path.exists():
-        try:
-            urllib.request.urlretrieve(favicon_url, icon_path)
-        except:
-            return QIcon()  # Return empty icon if download fails
-            
-    return QIcon(str(icon_path))
-
-def get_normIcon(name, inv):
-    if inv == True:
-        icon_path = icon_cache_dir / f"inv_{name}.ico"
-    else:
-        icon_path = icon_cache_dir / f"{name}.ico"
+def get_normIcon(name):
+    icon_path = icon_cache_dir / f"{name}"
 
     return QIcon(str(icon_path))
 
 engines = {
-    "ecosia": ("https://www.ecosia.org/search?q=", "https://www.ecosia.org/favicon.ico"),
-    "google": ("https://www.google.com/search?udm=14&q=", "https://www.google.com/favicon.ico"),
-    "brave": ("https://search.brave.com/search?q=", "https://brave.com/favicon.ico"),
-    "duckduckgo": ("https://duckduckgo.com/search?q=", "https://duckduckgo.com/favicon.ico")
+    "ecosia": "https://www.ecosia.org/search?q=",
+    "google": "https://www.google.com/search?udm=14&q=",
+    "brave": "https://search.brave.com/search?q=",
+    "duckduckgo": "https://duckduckgo.com/search?q="
 }
 
 #starter engine
-engine = engines['brave'][0]
+engine = 'brave'
+
+#setText names
+global eColsButton, eColsStyle
+eColsButton = []
+eColsStyle = []
+ 
+
+
 
 class Browser(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Midnight Engine")
         self.resize(1200, 800)
+        global eColsStyle
+        global eColsButtons
         self.url_bar = QLineEdit()
+        eColsStyle.append("url_bar")
+        self.user = "mainUser" #make a system for this at some point!!!
 
         self.main_path = Path(__file__).parent
         self.home_path = self.main_path / "homepage.html"
@@ -65,15 +59,15 @@ class Browser(QMainWindow):
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.currentChanged.connect(self.switch_tab)
+        eColsStyle.append("tabs")
         self.setCentralWidget(self.tabs)
         self.add_new_tab(QUrl.fromLocalFile(str(self.home_path)), "Home")
-
-        self.SelectedColourProfile = "profile1" #handle this more elegantly at some point
 
         self.nav_bar = QToolBar("Navigation")
         self.addToolBar(self.nav_bar)
         self.nav_bar.setMovable(False)
         self.nav_bar.setStyleSheet("background:rgb(1, 1, 100)")
+        eColsStyle.append("nav_bar")
         
 
         #buttons
@@ -99,14 +93,17 @@ class Browser(QMainWindow):
         colour palettes that opens the customiser UI and greys out and disables the buttons, allowing users to left click buttons
         to select a colour for them.
         '''
-        self.ColourPalette_btn = QToolButton(self)
-        self.ColourPalette_btn.setToolTip("Colour Palettes")
+        self.colourPalette_btn = QToolButton(self)
+        self.colourPalette_btn.setToolTip("Colour Palettes")
         ColourMenu = QMenu(self)
 
-        #define starter profile
-        self.selectedprofile = 'profile1'
+        #define starter profile. Need to do this more elegantly at some point since the profile selection doesn't even start at this it's just a placeholder
+        with open (f'{self.main_path}/data/userData.json', "r") as f:
+            Udata = dict(json.load(f))
+        self.selectedprofile = (dict(Udata[self.user]))["ColourProfile"]
+        print(self.selectedprofile)
 
-        with open (f"{self.main_path}/colourProfiles.json", "r") as f:
+        with open (f"{self.main_path}/data/colourProfiles.json", "r") as f:
             Colourdata = dict(json.load(f))
         
         for key in Colourdata.keys():
@@ -118,6 +115,7 @@ class Browser(QMainWindow):
 
             #Add text
             Ctext_label = QLabel(key.capitalize())
+            Ctext_label.setStyleSheet("text-align:center")#fix this????
             Clayout.addWidget(Ctext_label)
 
             #Create Widget Action
@@ -126,15 +124,32 @@ class Browser(QMainWindow):
             Cwidget_action.setData(key)
             Cwidget_action.triggered.connect(lambda checked, p=key, d=Colourdata: self.SelectColourTheme(p, d))
             ColourMenu.addAction(Cwidget_action)
+
+        #add more themes button append
+        Awidget = QWidget()
+        Alayout = QHBoxLayout(Awidget)
+        Alayout.setContentsMargins(5, 2, 5, 2)
+        Alayout.setSpacing(5)
+
+        Atext_label = QLabel("Add New Themes")
+        Alayout.addWidget(Atext_label)
+
+        Awidget_action = QWidgetAction(self)
+        Awidget_action.setDefaultWidget(Awidget)
+        Awidget_action.setData("Add New Themes")
+        Awidget_action.triggered.connect(self.ColourThemeEditor)
+        ColourMenu.addAction(Awidget_action)
+
         
-        self.ColourPalette_btn.setMenu(ColourMenu)
-        self.ColourPalette_btn.setIcon(get_normIcon("colourPalette", inv))
+        self.colourPalette_btn.setMenu(ColourMenu)
+        self.colourPalette_btn.setIcon(get_normIcon("colourPalette"))
 
         # When the main button is clicked, read the current selectedprofile at click time
-        self.ColourPalette_btn.clicked.connect(lambda checked=False, d=Colourdata: self.ToggleColourTheme(self.selectedprofile, d))
+        self.colourPalette_btn.clicked.connect(lambda checked=False, d=Colourdata: self.ToggleColourTheme(self.selectedprofile, d))
 
-        self.ColourPalette_btn.setPopupMode(QToolButton.MenuButtonPopup)
-        self.nav_bar.addWidget(self.ColourPalette_btn)
+        self.colourPalette_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        self.nav_bar.addWidget(self.colourPalette_btn)
+        eColsButton.append("colourPalette_btn")
         
 
 
@@ -144,7 +159,7 @@ class Browser(QMainWindow):
         self.engine_btn.setText("Search With...")
         menu = QMenu(self)
 
-        for key, (search_url, favicon_url) in engines.items():
+        for key, search_url in engines.items():
             # Create widget for menu item
             widget = QWidget()
             layout = QHBoxLayout(widget)
@@ -153,7 +168,7 @@ class Browser(QMainWindow):
             
             # Add icon
             icon_label = QLabel()
-            icon = get_favicon(key, favicon_url)
+            icon = QIcon(str(icon_cache_dir / f"{key}"))
             icon_label.setPixmap(icon.pixmap(16, 16))
             layout.addWidget(icon_label)
             
@@ -165,21 +180,19 @@ class Browser(QMainWindow):
             widget_action = QWidgetAction(self)
             widget_action.setDefaultWidget(widget)
             widget_action.setData((key, search_url))
-            widget_action.triggered.connect(lambda checked, v=search_url, k=key: self.set_engine(k, v))
+            widget_action.triggered.connect(lambda checked, k=key: self.set_engine(k))
             menu.addAction(widget_action)
             
         self.engine_btn.setMenu(menu)
+        self.engine_btn.setIcon(QIcon(str(icon_cache_dir / f"{self.engine}")))
 
-        initial_engine = [k for k,v in engines.items() if v[0]==self.engine][0]
-        self.engine_btn.setIcon(get_favicon(initial_engine, engines[initial_engine][1]))
-
-        self.engine_btn.clicked.connect(lambda: self.current_browser.setUrl(QUrl(self.engine.split('/search?q=')[0])))
+        self.engine_btn.clicked.connect(lambda: self.current_browser.setUrl(QUrl(engines[self.engine].split('/search?q=')[0])))
 
         self.engine_btn.setPopupMode(QToolButton.MenuButtonPopup)
         self.nav_bar.addWidget(self.engine_btn)
 
 
-        self.set_engine([k for k,v in engines.items() if v[0]==self.engine][0], self.engine)
+        self.set_engine(self.engine)
         self.url_bar = QLineEdit()
         self.url_bar.returnPressed.connect(self.load_url)
         self.nav_bar.addWidget(self.url_bar)
@@ -190,7 +203,8 @@ class Browser(QMainWindow):
         """Creates all buttons for navbar"""
         btn = QToolButton(self)
         btn.setToolTip(tooltip)
-        btn.setIcon(get_normIcon(icon, inv))
+        btn.setText(name)
+        btn.setIcon(get_normIcon(icon))
         self.nav_bar.addWidget(btn)
 
         #Dynamically attach button to object data
@@ -201,6 +215,9 @@ class Browser(QMainWindow):
             btn.clicked.connect(getattr(self, handler_name))
         else:
             print(f"WARNING! Handler name {handler_name} not found")
+        
+        global eColsButton
+        eColsButton.append(name)
         
         return btn
 
@@ -215,7 +232,7 @@ class Browser(QMainWindow):
     def rotate_reload_icon(self):
         """Rotate the reload icon continuously"""
         self.rotation_angle = (self.rotation_angle + 10) % 360
-        base_icon = get_normIcon("reload", inv)
+        base_icon = get_normIcon("reload")
         pixmap = base_icon.pixmap(24, 24)
         
         transform = QTransform().rotate(self.rotation_angle)
@@ -231,7 +248,7 @@ class Browser(QMainWindow):
             self.rotation_timer.stop()
         # reset icon to upright
         self.rotation_angle = 0
-        self.reload_btn.setIcon(get_normIcon("reload", inv))
+        self.reload_btn.setIcon(get_normIcon("reload"))
 
     def current_browser(self):
         return self.tabs.currentWidget()
@@ -300,7 +317,7 @@ class Browser(QMainWindow):
             wordlist = url.split(" ")
             joiner = "+"
             texturlcomp = joiner.join(wordlist)
-            fullurl = engine + texturlcomp
+            fullurl = engines[engine] + texturlcomp
             print(fullurl)
         
         self.current_browser.setUrl(QUrl(fullurl))
@@ -308,21 +325,64 @@ class Browser(QMainWindow):
     def on_load_finished(self):
         pass
     
-    def set_engine(self, key, value):
+    def set_engine(self, key):
         global engine
-        self.engine = value
-        engine = value
+        engine = key
         self.engine_btn.setText(key.capitalize())
-        self.engine_btn.setToolTip(value)
-        self.engine_btn.setIcon(get_favicon(key, engines[key][1]))
+        self.engine_btn.setToolTip(key)
+        self.engine_btn.setIcon(QIcon(str(icon_cache_dir / f"{key}")))
     
     def SelectColourTheme(self, profile, themes):
+        global eColsButton, eColsStyle
         self.selectedprofile = profile
 
-        self.ColourPalette_btn.setToolTip(f"Colour Palettes (currently {profile})")
+        self.colourPalette_btn.setToolTip(f"Colour Palettes (currently {profile})")
 
         print(f"Colour Profile Switched to {profile}")
 
+        datalist = list((themes[profile]).items())
+        print(datalist)
+
+        #recolour icons
+        for k, v in datalist:
+            if k in eColsButton:
+                print(f"eColsButton: {k}")
+                print(f"colourAdjust: {v}")
+                obj = getattr(self, k, None)
+                if obj is not None:
+                    name = (str(k).split("_btn"))[0]
+                    filepath = (f"{icon_cache_dir}/{name}.png")
+                    img = Image.open(filepath).convert('RGBA')
+                    r, g, b, a = img.split() #only need 'a' value
+                    #convert to white for better handling
+                    white_img = Image.new("RGBA", img.size, (255, 255, 255, 255))
+                    mask_white = white_img.copy()
+                    mask_white.putalpha(a)
+                    #convert colour data into usable rgb tuple SAFELY - consider paramaterising this to avoid injection
+                    vstrip = v.strip('()').split(',')
+                    newv = tuple(int(i) for i in vstrip)
+                    coloured = Image.new("RGBA", img.size, newv+(255,))
+                    coloured.putalpha(a)
+                    colouredpath = (f"{icon_cache_dir}/{name}.png")
+                    coloured.save(colouredpath, format='PNG')
+                    #REFRESH ICON
+                    obj.setIcon(QIcon(str(colouredpath)))
+                #select file from system and use PIL to change based on colour v, then s
+                pass
+
+            #recolour other elements
+            elif k in eColsStyle:
+                print(f"eColsStyle: {k}")
+                #adjust stylesheet to v colour by setting the stylesheet of self.{k}
+                pass
+            else:
+                print(f"other: {k}")
+                pass
+            
+        #run through key value pair and map to button name then swap rgb or hsv values
+        print(f"button stuff: {eColsButton}")
+        print(f"style stuff: {eColsStyle}")
+        
 
 
 
@@ -343,11 +403,12 @@ class Browser(QMainWindow):
 
     #system for when I implement the main colourtheme editor
     def ColourThemeEditor(self):
+        print("ColourThemeEditor still WIP")
         pass
     
 
     
-if __name__ == "__main__":#
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = Browser()
     window.show()

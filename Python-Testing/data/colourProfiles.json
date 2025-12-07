@@ -1,0 +1,62 @@
+{
+    "Pastel Breeze": { 
+        "back_btn": "(182, 220, 241)",
+        "reload_btn": "(245, 203, 225)",
+        "colourPalette_btn": "(255, 236, 209)",
+        "newtab_btn": "(198, 223, 255)",
+        "home_btn": "(255, 214, 235)",
+        "forward_btn": "(205, 245, 212)"
+
+    },
+    "Cyber Lime": { 
+        "back_btn": "(110, 255, 91)",
+        "reload_btn": "(47, 255, 168)",
+        "colourPalette_btn": "(190, 255, 0)",
+        "newtab_btn": "(0, 255, 77)",
+        "home_btn": "(84, 215, 43)",
+        "forward_btn": "(168, 255, 112)"
+
+    }, 
+    "Mint": {
+        "back_btn": "(170, 255, 214)",
+        "reload_btn": "(140, 245, 200)",
+        "colourPalette_btn": "(120, 235, 185)",
+        "newtab_btn": "(150, 255, 210)",
+        "home_btn": "(190, 255, 230)",
+        "forward_btn": "(160, 240, 200)"
+    },
+    "Solar": {
+        "back_btn": "(255, 207, 72)",
+        "reload_btn": "(255, 181, 44)",
+        "colourPalette_btn": "(255, 153, 0)",
+        "newtab_btn": "(255, 227, 112)",
+        "home_btn": "(255, 239, 168)",
+        "forward_btn": "(255, 195, 66)"
+    },
+    "Coral": {
+        "back_btn": "(255, 111, 97)",
+        "reload_btn": "(255, 138, 120)",
+        "colourPalette_btn": "(255, 176, 148)",
+        "newtab_btn": "(255, 151, 117)",
+        "home_btn": "(255, 199, 190)",
+        "forward_btn": "(255, 132, 105)"
+    }, 
+    "Light Mode": { 
+        "back_btn": "(255, 255, 255)", 
+        "reload_btn": "(255, 255, 255)", 
+        "colourPalette_btn": "(255, 255, 255)", 
+        "newtab_btn": "(255, 255, 255)", 
+        "home_btn": "(255, 255, 255)", 
+        "forward_btn": "(255, 255, 255)"
+
+    },
+    "Default Dark Mode": { 
+        "back_btn": "(0, 0, 0)", 
+        "reload_btn": "(0, 0, 0)", 
+        "colourPalette_btn": "(0, 0, 0)", 
+        "newtab_btn": "(0, 0, 0)", 
+        "home_btn": "(0, 0, 0)", 
+        "forward_btn": "(0, 0, 0)"
+
+    }
+}
