@@ -3,6 +3,7 @@
 "C:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x64\signtool.exe" verify /pa /v "C:\Users\saman\OneDrive\Documents\GitHub\Midnight-Engine-Browser\output\MidnightWatch.msix"
 "C:\Program Files\WindowsApps\MidnightWatch_1.0.0.0_neutral__8t28hw3v2jbjm\Midnight Watch.exe"
 
+"C:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x86\makepri.exe" createconfig /cf priconfig.xml /dq en-US /pv 10.0.0
 
 Install certificate to:
 Trusted Root Certification Authorities (Local Machine)

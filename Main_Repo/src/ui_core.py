@@ -405,12 +405,14 @@ class BarManager:
         self.dateBox.setReadOnly(True)
         self.dateBox.setPlaceholderText("...")
         self.dateBox.setMaximumWidth(300)
+        self.dateBox.setToolTip("Date Display")
         
         #controls the time display
         self.timeBox = QLineEdit()
         self.timeBox.setReadOnly(True)
         self.timeBox.setPlaceholderText("...")
         self.timeBox.setMaximumWidth(150)
+        self.timeBox.setToolTip("Time Display")
 
         #controls the zoom display and slider
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
@@ -419,10 +421,12 @@ class BarManager:
         self.zoom_slider.setValue(100)
         self.zoom_slider.setFixedWidth(self.status_bar.width() // 3)
         self.zoom_slider.sliderMoved.connect(self.on_zoom_slider_moved)
+        self.zoom_slider.setToolTip("Zoom Slider")
 
         #dispay based on current zoom value, press to return to 100% exactly
         self.zoomDisplay = QPushButton("100%")
         self.zoomDisplay.clicked.connect(lambda: self.zoom_slider.setValue(100))
+        self.zoomDisplay.setToolTip("Reset zoom to 100%")
         self.zoom_slider.valueChanged.connect(lambda value: (self.zoomDisplay.setText(f"{value}%"), self.on_zoom_slider_moved(value)))
 
         self.zoomDisplay.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -440,6 +444,7 @@ class BarManager:
         except Exception as e:
             print(f"Error loading help icon: {e}")
         self.helpButton.clicked.connect(lambda: self.parent.UIHelper("General"))
+        self.helpButton.setToolTip("Help & Documentation")
 
 
         self.profileDisplay = QPushButton(name if name else "Unnamed")
@@ -457,6 +462,7 @@ class BarManager:
                 print(f"Error loading profile icon: {e}")
         #is there a way to make this reopen the profile selection menu?
         self.profileDisplay.clicked.connect(self.parent.open_profile_menu)
+        self.profileDisplay.setToolTip("Profile Selection")
 
         self.profileDisplay.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.profileDisplay.customContextMenuRequested.connect(lambda pos: self.parent.displayStatusBarContextMenu(pos, self.profileDisplay, "profileDisplay"))
@@ -549,7 +555,7 @@ class BarManager:
             for bid, data in bookmarkData.items():
                 name = data["name"]
                 url = data["url"]
-                Bbutton = QPushButton(name.capitalize())
+                Bbutton = QPushButton(name)
 
                 FAVurl = f"https://www.google.com/s2/favicons?domain={QUrl(url).host()}&sz=32"
                 try:
@@ -573,6 +579,7 @@ class BarManager:
                 #Right click context menu 
                 Bbutton.setContextMenuPolicy(Qt.CustomContextMenu)
                 Bbutton.customContextMenuRequested.connect(partial(self.parent.displayBookmarksContextMenu, Bbutton, bid, bookmarkData))
+                Bbutton.setToolTip(f"{name}\n{url}")
 
                 self.bookmarks_bar.addAction(Bbutton_action)
 
@@ -610,7 +617,7 @@ class BarManager:
                 btn.setIconSize(QSize(16, 16))
 
                 btn.clicked.connect(
-                    lambda checked, t=url, l=name: self.parent.add_new_tab(qurl=t, label=l)
+                    lambda checked, t=url, l=name: self.parent.add_new_tab(qurl=QUrl(t), label=l)
                 )
 
                 action = QWidgetAction(self.parent)
@@ -619,7 +626,7 @@ class BarManager:
 
             #link to right click context menu after refreshing
             btn.setContextMenuPolicy(Qt.CustomContextMenu)
-            btn.customContextMenuRequested.connect(partial(self.show_bookmark_menu, btn, bid, bookmarkData))
+            btn.customContextMenuRequested.connect(partial(self.parent.displayBookmarksContextMenu, btn, bid, bookmarkData))
         except (json.decoder.JSONDecodeError, UnboundLocalError):
             print("Can't refresh bookmarks as none exist in the json file!")
             pass
@@ -1677,7 +1684,7 @@ class SystemHelperUI(QDialog):
                 "subimage1": "^ Cookies button location on the toolbar",
                 "subtitle3": "Important Info",
                 "text2": "Cookies are small packets of information that websites use to store data from their site onto your browser in order to preserve it for the next time you visit, or just to test different features.",
-                "text3": "Cookies can be used for helpful website actions, such as keeping you logged in to specific sites, remembering your preferences for important data, or saving things like your shopping cart on an online store. However, they can also be used for malicious purposes, such as tracking your activity across the web, storing invasive data, or even being used as a vector for malware.",
+                "text3": "Cookies can be used for helpful website actions, such as keeping you logged in to specific sites, remembering your preferences for important data, or saving things like your shopping cart on an online store. However, they can also be used for malicious purposes, such as tracking your activity across the web, storing invasive data, or even being used as a system to distribute malware.",
                 "text4": "With how invasive sites are becoming on forcing cookie acceptance for both good and bad terms, the cookie management system in the browser is designed to give you full control over which cookies you accept and which you deny, while also giving you the option to automatically accept or deny certain cookies based on rules you can set up in the settings menu.",
                 "text5": "In addition, since the cookies are stored in a pending state until you accept or deny them, you can choose to leave cookies in the pending state if you want to browse without being spammed to turn off your cookie blockers, then deny them before leaving.",
                 "imagebox2": f"{srcSourceDir}/ui/help_image_cache/cookies_dropdown_display.png",
@@ -1711,7 +1718,6 @@ class SystemHelperUI(QDialog):
                 "imagebox2": f"{srcSourceDir}/ui/help_image_cache/bookmarks_button_boxed.png",
                 "subimage2": "^ The location of the bookmark icon. Note that it updates depending on the page!",
                 "text4": "Bookmarks can be name-edited or deleted by right clicking over the specific button."
-                #"text5": "Bookmarks that overflow the main bar will enter an overflow segment that can be scrolled between to see all available bookmarks." - add this when I fix that up!
             },
             "Url Bar": {
                 "subtitle1": "The URL Bar",
@@ -1793,6 +1799,84 @@ class SystemHelperUI(QDialog):
                 "text8": "Zoom In: Ctrl+=",
                 "text9": "Zoom Out: Ctrl+-",
                 "text10": "Mute/Unmute Tab: Ctrl+M"
+            },
+            "Security Principles": {
+                "subtitle1": "Overview",
+                "text1": "The internet is a big place, and it's changing constantly. While it's often an afterthought for most users, security is paramount to your experience over the internet, and is a necessity to keep in mind.",
+                "subtitle2": "Basic Security",
+                "text7": "This one is far more well known, but still often ignored. Security requires sacrifice but it also requires effort. If something is convenient for an important process, it's either insanely well designed or dangerous.",
+                "text8": "Passwords are the most common first point of consideration. Ideally, passwords should be stored anywhere other than online. A scrap of paper would be more secure than saving it to a document. Word, Google Docs, Notepads, all of those are points of failure because everything is connected. Unless you know for absolute certain that a storage point is secure, it probably isn't.",
+                "text9": "Encrypted password managers are theoretically good solutions, but it's critical to ensure that the stored passwords are still unique and the master password is extremely hard to get. Just because they're in a manager doesn't mean they're secure. Maximise your security by maximising your passwords. Using a variety of special characters, avoiding any patterns or additional ties to yourself, and randomising appearances is your best option. If you're looking at your browser's password manager? Don't. Just don't. That's the first place a hacker looks, and their security is weak.",
+                "imagebox2": f"{srcSourceDir}/ui/help_image_cache/PasswordManagersStats.png",
+                "subimage2": "^ Password managers are helpful, but your password written management needs to be better first to reap the benefits.",
+                "text10": "Security is also valuable for analysing points of failure. Download streams, automatic updates, everything can be compromised. Always verify that you know what you're looking at is safe. Do your research, and for goodness sake do not rely on AI overview summaries to tell you what to do.",
+                "subtitle4": "Advanced Security",
+                "text15": "Security is a continual effort and one which requires constant maintenance. Moreso than even privacy, security measures are constantly updating and changing to counteract more dangerous situations, and must be maintained at all costs.",
+                "text16": "First is making sure your tools are effective. Keep your operating system and browser up to date, verify no vulnerabilities exist in the form of dangerous files or exposed information, and ensure that no additional systems like extensions are potentially compromised.",
+                "text17": "On the topic of extensions, their security is a consistent issue within the browser development space. Extensions are constantly-updating javascript packets that obtain instant permission access and cannot be verified before updating. Extensions like uBlock update constantly and most users aren't even aware. In essence, extensions are a black box; the data in and out is unknown to users. Security in their stead depends on minimising the number installed and only adding extensions from verified developers.",
+                "imagebox3": f"{srcSourceDir}/ui/help_image_cache/browserExtensionBasedAttacks.png",
+                "submage3": "^ Extensions cause a variety of critical vulnerabilities that most aren't aware of. Make absolutely sure nothing dangerous is happening with your extensions. Minimise amount of them present to increase your chances of safety.",
+                "text18": "Security requires inconvenience. The more inconvenient it is for you to get in, someone else is likely having even more trouble. Multi-Factor authentication is a great step to maintaining this. Do NOT ignore it's value. If something suggests the option and you know it's safe to give the number, give it. MFA is an invaluable tool to maintaining security.",
+                "text19": "Common sense on websites is critical to security as well. Always make sure the site you're on is legitimate and safe. Watch out for content policies, fake links and logos, and anything else that could be a giveaway. The nature of most scams is to set up, catch a few unsuspecting, then disappear, so corners will naturally be cut. Finding those is what keeps you safe.",
+                "text20": "The same logic applies to various communication systems. Emails can be faked or spoofed. Check for spelling errors where there shouldn't be, misspelled names, and faked logos. Many email scams also use odd wording or try to fake their username by putting similar letters next to each other. Always be cautious. Despite how simple it seems, phishing and social-engineering based hacks are some of the most common and most effective on the planet.",
+                "imagebox4": f"{srcSourceDir}/ui/help_image_cache/phishingSocialEngineering.jpg",
+                "subimage4": "^ Some ways to spot fake emails.",
+                "subtitle5": "The Takeaway",
+                "text21": "Ultimately, security and privacy online is critically dependent on your willingness to sacrifice convenience for safety. Always enforce a zero-trust policy. Enter every situation under the assumption that a place is unsafe until verified. Secure yourself with extreme predjudice, and use as many tools as possible to do so. Always remember, once something is on the internet, it's no longer yours."
+            },
+            "Privacy Principles": {
+                "subtitle1": "Overview",
+                "text1": "Privacy is a critical component of internet safety that is usually ignored in favour of the flashier security ideas, but is equally as important to keep in mind while operating online.",
+                "subtitle2": "Basic Privacy",
+                "text2": "Basic privacy is a step that most people still aren't aware of. The most important consideration of all of it is the nature of data collection. Companies can and will use anything you say to optimise the experience for you in ways you don't know about. From targeted ads to invasive tracking, anything and everything will be used against you.",
+                "text3": "Thus, the solution is simply to provide as little as possible. Anonymised profiles, avoiding personal information sharing, and most of all, keeping your real life self away from it.",
+                "text4": "All that data, while interesting in the moment, is still data that is easily accessible and even more easily utilised. Web scrapers can train on your information, AI models on your appearance and writing, targeted ads based on the content of photos and just about any scrap of metrics data that can be obtained.",
+                "imagebox1": f"{srcSourceDir}/ui/help_image_cache/WebScraperBots.png",
+                "subimage1": "^ A basic diagram of the capabilities of web scraping.",
+                "text5": "So if you're ever considering another photo for Instagram, a message on a platform like Discord, or even just a message on a forum, remember. Once it's out there, you no longer have control of what happens with it.",
+                "subtitle3": "Advanced Privacy",
+                "text11": "Privacy is a difficult subject in a world where every company desperately wants your information. If a system promises to analyse something, you can guarantee it'll be sending that data back to the company for alternative uses too.",
+                "text12": "Privacy on other sites isn't limited to just what you say, either. Just about every trick in the book is deployed to get your data by any and all means. Methods of reducing this rely on substituting this information for generic content to disguise yourself. This is the core principle of countering methods like device fingerprinting, which tries to analyse your device information to link as much of you together as possible.",
+                "text13": "If you want to see just how much a company knows, request your data from them. All companies are required to provide it, and it shows you just what they know. You can also request deletion, though compliance depends on the laws of where you live. Solutions like data privacy managers (see, Incogni) have ways to handle this automatically, but their actual capabilities are dubious (see, also incogni, and how all it's targeted data brokers are companies it is owned by).",
+                "imagebox2": f"{srcSourceDir}/ui/help_image_cache/dataDeletionRequest.jpg",
+                "subimage2": "^ An example of a written request for data deletion.",
+                "text14": "When browsing the web, make sure everything you do is as anonymous as possible. Anti-fingerprinting extensions, browsers with verified anti-fingerprinting measures, and using systems like virtual machines and TOR browsers (browsers that route your data through multiple locations first) all help. VPNs can help fake your location, but unlike what all the ads say, you aren't more secure and more in-depth security can counter it and target you.",
+                "subtitle6": "The Takeaway",
+                "text21": "Ultimately, security and privacy online is critically dependent on your willingness to sacrifice convenience for safety. Always enforce a zero-trust policy. Enter every situation under the assumption that a place is unsafe until verified. Secure yourself with extreme predjudice, and use as many tools as possible to do so. Always remember, once something is on the internet, it's no longer yours."
+            },
+            "WebEngines": {
+                "subtitle1": "Overview",
+                "text1": "Web engines are the systems that sit under the browser's user-facing appearance, controlling how it handles web information, renders the things you see, and processes standard web information.",
+                "text2": "Web engines comprise the core security features that dictate the browser's effectiveness, and they have an incredible amount of work put into them to maintain your ability to do just about anything online.",
+                "text3": "However, that insane amount of work is a massive drawback; it's the reason why only two properly exist on the consumer market. (Besides a few exceptions like Safari)",
+                "text4": "- The Chromium web engine, seen across most browsers you might be familiar with. Chrome, Edge, Brave, Opera (and GX), Vivaldi, Arc, Samsung Internet, and more. It's known for it's speed, security, and rapid update cycle, but naturally has the same Google problems of privacy violations.",
+                "text5": "- The Gecko web engine, developed as a proprietary engine by Firefox and used in forks like Zen, Tor, Waterfox, LibreWolf, Floorp, and more. It's nearly the same speed and relatively private, but struggles with updates due to their smaller dev team and has weaker security overall.",
+                "subtitle2": "Why is this important?",
+                "text6": "Web engines control everything underlying a browser, thus it is the most critical component of a browser to get right. Unfortunately, the web is an incredibly complex environment and these web engines are extremely hard to develop effectively.",
+                "text7": "For this reason, most browsers will rely on either forking (making a variant of) or developing on top of the existing chromium layers, and updating it whenever Chromium's is updated.",
+                "text8": "Midnight Watch is no exception to this. This browser relies on a chromium backend forked by the PyQt team, with proprietary systems on top developed to bring you all the interesting customisations and security features.",
+                "text9": "Web Engines are important to consider because they dictate the innate security of a browser and the nature of development on top, as well as factors like speed, efficiency, system resource use, and how much the original company can see about what you do.",
+                "subtitle3": "Web Engines and Midnight Watch",
+                "text10": "Unfortunately, while Midnight Watch utilises as many security systems as possible to maximise your safety and privacy online, we are nowhere near perfect. Your security is still in your hands, we only aim to give you the tools to control and understand it.",
+                "text11": "Midnight Watch's reliance on PyQt is also our achilles heel. Chromium engines are updated on a weekly basis to combat new security threats, however our PyQt update channel is on a quarterly basis, and lagging behind. That is to say, a weaker form of engine security, usually a few major updates behind.",
+                "text12": "While this won't immediately compromise your security, it does mean you're more exposed on shady websites or ones that may be accidentally hosting malware. From viruses breaking through using rendering vulnerabilities to those attacking through even something as simple as a font, these dangers are everywhere.",
+                "text13": "This is why systems like DNS over HTTPS and the unsafe site detection system are so important. While Midnight Watch cannot control the quality of the underlying engine, we can make sure everything else is as optimised as possible for security. However, without a proper engine, it's similar to building an iron fortress on a foundation of playing cards.",
+                "subtitle4": "Web Engines and You",
+                "text14": "At Midnight Watch, your security and preparedness is our top priority, which is also why we aim to be transparent. By all means, there are better, more secure browsers out there purely by merit of having a stronger underlying engine.",
+                "text15": "We aim to mitigate the downsides and boost the upsides of a semi-outdated chromium by reinforcing privacy and providing our own security, but in such a rapidly evolving system as the internet, from our perspective, it's simply not enough.",
+                "text16": "Whether you stay with us or not, we sincerely hope that your time here is valuable and you learn what you need to. The tools and systems are out there, it is simply up to you to find them.",
+                "text17": "Good luck and stay safe."
+            },
+            "Extensions": {
+                "subtitle1": "Overview",
+                "text1": "More experienced users may question where the extensions are on this browser. However, the browser has chosen to tactically avoid support.",
+                "subtitle2": "The Rundown",
+                "text2": "Extensions are small packeted programs designed to execute specific tasks that a browser would not conventionally support. Various extensions systems integrated across chromium and firefox work to add smaller features like adblocking, page management, and other alternate forms.",
+                "text3": "However, the nature of extensions as remote-install page allowed and their massive permissions access for users makes them highly insecure unless managed extremely well.",
+                "text4": "Further, extensions frequently require extremely specific designs. The nature of Midnight Watch as being so heavily customised means various extensions simply would not work how they're designed, and others like uBlock would clash with the inbuilt adblockers to reduce overall effectiveness.",
+                "subtitle3": "Verdict",
+                "text5": "Unfortunately for users who may be more accustomed to specific configurations, extensions are simply too vulnerable and too restrictive to conventionally support within the browser.",
+                "text6": "However, we're always working on new features to improve customisability, functionality and accessibility, so any suggestions or methods for improvement are more than welcome in their stead."
             }
         }
 

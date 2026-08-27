@@ -58,17 +58,58 @@ class InternalPage(QWebEnginePage):
             return new_page
         
     def acceptNavigationRequest(self, url, nav_type, is_mainframe):
-        print("NAV REQUEST: " + str(url))
 
+        print("NAV REQUEST:", url.toString())
+        scheme = url.scheme().lower()
+
+        # Internal resources always OK
+        if scheme == "midnightwatch":
+            if url.path() == "/proceed":
+                query = QUrlQuery(url)
+                target = query.queryItemValue("url", QUrl.ComponentFormattingOption.FullyDecoded)
+                print("PROCEED TARGET:", repr(target))
+
+                if target:
+                    target_url = QUrl(target)
+
+                    if target_url.isValid() and not target_url.isEmpty():
+                        target_string = target_url.toString()
+                        print("Redirecting to:", target_string)
+                        # One-shot bypass
+                        self.parent.warning_bypass_url = target_string
+                        QTimer.singleShot(0, lambda target_url=target_url: self.setUrl(target_url))
+
+                return False
+            else:
+                return True
+
+        # Only inspect main-frame navigations
         if not is_mainframe:
             return True
 
-        scheme = url.scheme().lower()
+        blocklist = getattr(self.parent, "page_blocklist", {})
 
-        # internal resources always OK
-        if scheme == "midnightwatch":
+        # Explicit one-shot user bypass
+        if (getattr(self.parent, "warning_bypass_url", None) == url.toString()):
+            print(f"User explicitly bypassed blocklist: ", f"{url.toString()}")
+            self.parent.warning_bypass_url = None
             return True
-        
+
+        # Check URLhaus blocklist
+        if self.is_blocked_url(url, blocklist):
+
+            print(f"Blocked malicious URL: "f"{url.toString()}")
+
+            warning_url = QUrl("midnightwatch://local/warning.html")
+            query = QUrlQuery()
+            query.addQueryItem("host", url.host())
+            query.addQueryItem("url", url.toString())
+            warning_url.setQuery(query)
+
+            QTimer.singleShot(0, lambda: self.setUrl(warning_url))
+
+            return False
+
         # User-initiated actions are always allowed
         allowed = {
             QWebEnginePage.NavigationType.NavigationTypeTyped,
@@ -78,29 +119,41 @@ class InternalPage(QWebEnginePage):
             QWebEnginePage.NavigationType.NavigationTypeReload,
             QWebEnginePage.NavigationType.NavigationTypeFormSubmitted
         }
-        
+
         if nav_type in allowed:
             return True
 
-        # Handle Redirects
+        # Handle redirects
         if nav_type == QWebEnginePage.NavigationType.NavigationTypeRedirect:
+
             if url.scheme() == "midnightwatch":
                 return True
-            
-            # user intentionally left internal space
+
             if self.requestedUrl().scheme() in ("http", "https"):
                 return True
 
-            # allow same-origin redirects
             if url.host() == self.url().host():
                 return True
 
-            # prompt for cross-origin redirects
-            return self.additionalUIElements.WindowConfirmation("Redirect", f"Allow redirect to:\n{url.toString()}?")
+            return self.additionalUIElements.WindowConfirmation("Redirect", f"Allow redirect to:\n", f"{url.toString()}?")
 
-        print(f"Blocked internal navigation ({nav_type}) -> {url.toString()}")
+        print(f"Blocked internal navigation ", f"({nav_type}) -> {url.toString()}")
         return False
+    
+    def is_blocked_url(self, url, blocklist):
+        host = url.host().lower().rstrip(".")
+        blocked_paths = blocklist.get(host)
 
+        if blocked_paths is None:
+            return False
+
+        path = url.path() or "/"
+        query = url.query()
+
+        if query:
+            path += "?" + query
+
+        return path in blocked_paths
 
 
 
@@ -190,9 +243,8 @@ class UrlManager():
         query = QUrlQuery(qurl)
         clean_query = QUrlQuery()
 
-        for key, value in query.queryItems():
-            #Parameter list
-            Tracking_Parameters = [
+        # Parameter names that commonly identify tracking data.
+        tracking_parameters = {
                 "utm_",
                 "si",
                 "sei",
@@ -241,31 +293,27 @@ class UrlManager():
                 "ml_subscriber",
                 "ml_subscriber_hash",
                 ""
-            ]
+        }
 
-            seen = set()
+        seen = set()
+        for key, value in query.queryItems():
+            # Keep each non-tracking query pair once.
+            if key.startswith("utm_") or key in tracking_parameters:
+                continue
 
-            for key, value in query.queryItems():
-                
-                #only add parts to filter if they're in the filter lists
-                if (key.startswith("utm_") or key in Tracking_Parameters):
-                    continue
+            pair = (key, value)
 
-                pair = (key, value)
+            if pair in seen:
+                continue
 
-                if pair in seen:
-                    continue
+            seen.add(pair)
 
-                seen.add(pair)
-
-                clean_query.addQueryItem(key, value)
+            clean_query.addQueryItem(key, value)
 
         qurl.setQuery(clean_query)
 
         if not navlink: #only run this when not sanitising navigation links. Bookmarks need agressive normalisation but doing so for navlinks might break some sites
             host = qurl.host()
-            if host.startswith("www."):
-                qurl.setHost(host[4:])
 
             # normalise path
             path = qurl.path()
@@ -355,15 +403,14 @@ class AdditionalAdHide():
             if s.name() == "EV_Censor_AdBlock_Payload":
                 scripts_collection.remove(s)
 
-        # FIX FOR MSIX FILE LOOKUPS: Use hard, fully qualified base pathways
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        target_js_path = os.path.join(base_dir, "Javascript_Executables", "censorBlocker.js")
+        # Use the resolved asset root so MSIX reads the writable synchronized copy.
+        target_js_path = Path(srcSourceDir) / "Javascript_Executables" / "censorBlocker.js"
 
         try:
-            with open(target_js_path, 'r', encoding='utf-8') as f:
+            with open(target_js_path, "r", encoding="utf-8") as f:
                 js_code = f.read()
         except IOError as e:
-            print(f"MSIX Deployment System - File read failure: {e}")
+            print(f"Censor deployment - file read failure ({target_js_path}): {e}")
             js_code = ""
 
         if js_code:
@@ -375,4 +422,4 @@ class AdditionalAdHide():
             script.setRunsOnSubFrames(False) # Kept to False to prevent sandboxed iframe thread drops
 
             scripts_collection.insert(script)
-            print("MSIX Deployment System - Script loaded successfully.")
+            print(f"Censor deployment - registered {target_js_path} ({len(js_code)} bytes).")

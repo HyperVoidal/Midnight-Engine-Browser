@@ -73,7 +73,6 @@ builtins.__import__ = timed_import
 print("--- Starting Application Imports ---")
 
 print("Running Data Backend Setup")
-import sys
 import shutil
 import os
 from pathlib import Path
@@ -102,6 +101,7 @@ if sys.platform == "win32" and MSIX_REDIRECT:
 def sync_folder(source: Path, target: Path):
     """Recursively copies missing or newer files from source to target and unlocks them."""
     if not source.exists():
+        print(f"Packaged asset source is missing: {source}")
         return
 
     protected_files = {"profileData.json", "currentProfile.json", "actionToggles.json", "Cookies"}
@@ -167,11 +167,28 @@ elif OPERATING_SYSTEM == "Windows" and MSIX_REDIRECT:
         os.environ["QTWEBENGINE_XDG_CACHE_HOME"] = str(base_target / "Cache")
 
 
-        # Determine exact internal extraction path safe for PyInstaller/MSIX
-        if hasattr(sys, '_MEIPASS'):
-            installDir = Path(sys._MEIPASS)
-        else:
-            installDir = Path(__file__).parent
+        # MSIX uses the installed executable location as the stable package root.
+        # _MEIPASS is only a fallback for alternate PyInstaller layouts.
+        package_dir = Path(sys.executable).resolve().parent
+        source_candidates = [
+            package_dir / "_internal" / "src",
+            package_dir / "src",
+            Path(__file__).resolve().parent,
+        ]
+        if hasattr(sys, "_MEIPASS"):
+            meipass_dir = Path(sys._MEIPASS)
+            source_candidates.extend((meipass_dir / "src", meipass_dir))
+
+        installDir = next(
+            (candidate for candidate in source_candidates
+             if (candidate / "data" / "profileData.json").is_file()),
+            None,
+        )
+        if installDir is None:
+            searched = ", ".join(str(candidate) for candidate in source_candidates)
+            raise FileNotFoundError(
+                f"Could not find packaged asset source containing data/profileData.json. Searched: {searched}"
+            )
 
 
         
@@ -214,6 +231,8 @@ from PySide6.QtGui import *
 from PySide6.QtNetwork import *
 from PySide6.QtWebEngineCore import *
 from PySide6.QtWebChannel import *
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PySide6.QtMultimediaWidgets import QVideoWidget
 from urllib.parse import urlparse
 import requests
 import urllib.request
@@ -502,6 +521,12 @@ def settingsActivate(toggles):
             "--disable-accelerated-video-decode"
         ])
 
+    if toggles["Old-Hardware-Rendering"]:
+        chromiumFlags.extend([
+            "--disable-gpu-compositing"
+            "--disable-gpu"
+        ])
+
     if toggles["DeGoogler"] == True:
         #Disable all google flags that allow for a degoogled experience without compromising security too much. This is intended to be a power-user feature that removes google alongside their inbuilt user protections under the assumption that the user knows what they're doing
         chromiumFlags.extend([
@@ -552,9 +577,65 @@ def update_filters():
                 except Exception as e:
                     print(f"Failed to download {url}: {e}")
         
-        print("Midnight Shield: All filter data compiled.")
+        print("Midnight Shield: All adblock filter data compiled.")
         return True
     return False
+
+
+def update_pageFilters():
+    pageFilter_path = srcSourceDir / "data" / "pageblockerlist.txt"
+    request_url = "https://urlhaus.abuse.ch/downloads/text/"
+    if not pageFilter_path.exists():
+        pageFilter_path.parent.mkdir(parents=True, exist_ok=True)
+        print("Midnight Shield: Updating page filters...")
+        try:
+            response = requests.get(request_url, timeout=15)
+            if response.status_code == 200:
+                with open(pageFilter_path, "w", encoding="utf-8") as f:
+                    f.write(response.text)
+                print("Midnight Shield: All page filter data compiled.")
+                return True
+            else:
+                print(f"Server error {response.status_code} on {request_url}")
+        except Exception as e:
+            print(f"Failed to download {request_url}: {e}")
+
+
+
+def load_page_blocklist(path=srcSourceDir / "data" / "pageblockerlist.txt"):
+    blocked = {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                line = line.split("#", 1)[0].strip()
+                try:
+                    parsed = urlparse(line)
+                    host = parsed.hostname
+
+                    if not host:
+                        continue
+
+                    host = host.lower().rstrip(".")
+                    path = parsed.path or "/"
+
+                    if parsed.query:
+                        path += "?" + parsed.query
+
+                    if host not in blocked:
+                        blocked[host] = set()
+
+                    blocked[host].add(path)
+
+                except Exception:
+                    continue
+
+    except FileNotFoundError:
+        pass
+
+    return blocked
 
 
 #Converts image to an alpha channel and a colour channel. Turns all colours to white, removes alpha, then triggers a mask recolour to the desired appearance bsaed on json file
@@ -590,6 +671,52 @@ def ensure_webchannel_js(target_dir):
             with open(js_path, "wb") as f:
                 f.write(content)
             resource_file.close()
+
+
+class BootSplash(QDialog):
+    def __init__(self, video_path):
+        super().__init__()
+        self.setWindowTitle("Midnight Watch")
+        self.setWindowFlags(Qt.WindowType.SplashScreen | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setStyleSheet("background-color: black;")
+
+        self.video_widget = QVideoWidget(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.video_widget)
+
+        self.player = QMediaPlayer(self)
+        self.audio_output = QAudioOutput(self)
+        self.audio_output.setVolume(0.0)
+        self.player.setAudioOutput(self.audio_output)
+        self.player.setVideoOutput(self.video_widget)
+        self.player.mediaStatusChanged.connect(self._media_status_changed)
+        self.player.errorOccurred.connect(lambda *_: self.close())
+        self.player.setSource(QUrl.fromLocalFile(str(video_path)))
+
+    def _media_status_changed(self, status):
+        if status == QMediaPlayer.MediaStatus.EndOfMedia:
+            self.close()
+
+    def show_splash(self):
+        self.resize(720, 405)
+        screen = QApplication.primaryScreen()
+        if screen:
+            self.move(screen.availableGeometry().center() - self.rect().center())
+        self.show()
+        QApplication.processEvents()
+        self.player.play()
+        return self.exec()
+
+
+def show_boot_splash():
+    video_path = srcSourceDir / "ui" / "boot_splash.mp4"
+    if not video_path.is_file():
+        return
+
+    splash = BootSplash(video_path)
+    splash.show_splash()
 
 # Management for chromium flag observations to protect users in case of encoded video playback failure
 FatalGPUPatterns = {
@@ -778,7 +905,10 @@ class objectMasterBridge(QObject):
 
             if dataHeader == "GPUSafeSystem":
                 settingsData["GPU-Safe-System"] = (str(dataValue).lower() == "true")
-            
+
+            if dataHeader == "OldHardwareRendering":
+                settingsData["Old-Hardware-Rendering"] = (str(dataValue).lower() == "true")
+
             if dataHeader == "imageUpload":
                 fileInfo = dataValue
                 fileName = fileInfo["name"]
@@ -1002,6 +1132,9 @@ class objectMasterBridge(QObject):
 
         elif key == "GPUSafeSystem":
             return str(settingsData["GPU-Safe-System"])
+
+        elif key == "OldHardwareRendering":
+            return str(settingsData["Old-Hardware-Rendering"])
             
         else:
             return f"Error: Key: {str(key)} not found"
@@ -1064,7 +1197,7 @@ class profileSelectUI(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Profile Select")
-        self.resize(1200, 800)
+        self.resize(1200, 650)
         self.setWindowIcon(get_normIcon("tightlyCroppedIcon.png"))
 
         with open(f"{srcSourceDir}/data/profileData.json", "r") as f:
@@ -1393,7 +1526,7 @@ class profileSelectUI(QDialog):
         #source ID as next value
         id = int((next(reversed(self.profileData.keys())))[2:]) + 1 if self.profileData else 0
         #source data for new profile from the default profile - grab from default or otherwise just add default values
-        stored_data = self.profileData["id0"]["stored_data"] if "id0" in self.profileData else {"DNS-over-HTTPS": "AdGuard","Cookie-Prediction-Sensitivity": 0,"Cookie-Accept/Deny-On-Leave": 0,"Save-Tabs-On-Restart": 0,"Tab-Position": "North","Top-Stack": ["nav_bar","bookmarks_bar"],"Bottom-Stack": ["status_bar"],"Hidden-Stack": [],"Date-Display": ["dddd, d MMMM",1],"Time-Display": "hh:mm AP","Name": "Default","Greeting": 1,"Blur": 10,"Image-Url": "MainImageBackground.png","Colour-Theme": "Secured Blue","Utilise-QUIC-Browsing": 1,"DeGoogler": 0, "Dns-Fallback": 1, "GPU-Safe-System": 0, "Cookie-Auto-Handler": 1}
+        stored_data = self.profileData["id0"]["stored_data"] if "id0" in self.profileData else {"DNS-over-HTTPS": "AdGuard","Cookie-Prediction-Sensitivity": 0,"Cookie-Accept/Deny-On-Leave": 0,"Save-Tabs-On-Restart": 0,"Tab-Position": "North","Top-Stack": ["nav_bar","bookmarks_bar"],"Bottom-Stack": ["status_bar"],"Hidden-Stack": [],"Date-Display": ["dddd, d MMMM",1],"Time-Display": "hh:mm AP","Name": "Default","Greeting": 1,"Blur": 10,"Image-Url": "MainImageBackground.png","Colour-Theme": "Secured Blue","Utilise-QUIC-Browsing": 1,"DeGoogler": 0, "Dns-Fallback": 1, "GPU-Safe-System": 0, "Old-Hardware-Rendering": 0, "Cookie-Auto-Handler": 1}
            
         self.profileData[f"id{id}"] = {
             "Name": "Add New Profile",
@@ -1628,6 +1761,8 @@ class Browser(QMainWindow):
         #Update adblocker filters from easylist
         print("Updating filters and enabling adblock interceptor")
         update_filters()
+        update_pageFilters()
+        self.page_blocklist = load_page_blocklist()
         #Adblock interceptor
         self.interceptor = AdInterceptor()
         self.profile.setUrlRequestInterceptor(self.interceptor)
@@ -1893,7 +2028,11 @@ class Browser(QMainWindow):
             "Profiles Help": [None, "Profiles", "profile", 0],
             "StatusBar Help": [None, "Status Bar", "statusbar", 0],
             #Past this point is non-clickable areas that appear at the bottom of the help index
-            "Keybinds Help": [None, "Keybinds", "keybinds", 0]
+            "Keybinds Help": [None, "Keybinds", "keybinds", 0],
+            "Security": [None, "Security Principles", "Security", 0],
+            "Privacy": [None, "Privacy Principles", "Privacy", 0],
+            "Chromium, Web Engines, and You": [None, "WebEngines", "webengines", 0],
+            "Extensions": [None, "Extensions", "extensions", 0]
         }
         print("Helper UI links generated")
 
@@ -2078,7 +2217,9 @@ class Browser(QMainWindow):
 
         To ensure continual functionality, accelerated video decoding has been disabled
         (GPU Safe System should be enabled in settings)
-        Please reboot the browser to resume operation"""
+        Please reboot the browser to resume operation.
+        
+        If problems continue, enable Old-Hardware-Rendering in settings."""
             self.overlay.set_content(title, text)
             self.overlay.setGeometry(0, 0, self.width(), self.height())
             self.overlay.show()
@@ -2347,7 +2488,8 @@ class Browser(QMainWindow):
         )
         if new_name:
             data[bid]["name"] = new_name
-            self.refresh_bookmarksbar(data)
+            saveData(self.currentProfileID, self.profile_config)
+            self.barManager.refresh_bookmarksbar(data)
 
 
     def displayWebContextMenu(self, pos):
@@ -2722,7 +2864,12 @@ class Browser(QMainWindow):
         self.configure_bridge(qurl, browser)
 
         clean = self.UrlManager.normalise_url(True, qurl.toString())
-        self.url_bar.setText(clean)
+        self.set_url_bar_text(clean)
+
+    def set_url_bar_text(self, text):
+        self.url_bar.setText(text)
+        self.url_bar.setCursorPosition(0)
+        self.url_bar.clearFocus()
     
     def update_tab_icon(self, browser):
         tab_index = self.tabs.indexOf(browser)
@@ -2762,7 +2909,11 @@ class Browser(QMainWindow):
                 if hasattr(target_tab, 'page') and target_tab.page():
                     target_tab.page().deleteLater()
 
+                self.tab_zoom_values.pop(target_tab, None)
+
             self.tabs.removeTab(index)
+            next_browser = self.tabs.currentWidget()
+            QTimer.singleShot(0, lambda browser=next_browser: self.switch_tab(self.tabs.indexOf(browser)))
         else:
             self.close()
 
@@ -2777,7 +2928,7 @@ class Browser(QMainWindow):
             self.current_browser = current_browser
             raw_url = current_browser.url().toString()
             clean_url = self.UrlManager.normalise_url(True, raw_url)
-            self.url_bar.setText(clean_url)
+            self.set_url_bar_text(clean_url)
 
             # Restore zoom value for this tab using browser widget as key
             self.zoomValue = self.tab_zoom_values.get(current_browser, 100)
@@ -2893,17 +3044,17 @@ class Browser(QMainWindow):
         #update url bar to proper cleaned url text
         raw_url = self.current_browser.url().toString()
         clean_url = self.UrlManager.normalise_url(True, raw_url)
-        self.url_bar.setText(clean_url)
+        self.set_url_bar_text(clean_url)
 
     def htmlSearch(self, cQuery):
         #convert to search link
         search_url = self.engines[engine]["URL"] + cQuery.replace(" ", "+")
         #update and process system
-        self.current_browser.setUrl(QUrl(UrlManager.normalise_url(True, search_url)))
+        self.current_browser.setUrl(QUrl(self.UrlManager.normalise_url(True, search_url)))
         #update url bar to proper cleaned url text
         raw_url = self.current_browser.url().toString()
         clean_url = self.UrlManager.normalise_url(True, raw_url)
-        self.url_bar.setText(clean_url)
+        self.set_url_bar_text(clean_url)
 
     def configure_bridge(self, target_url, browser=None):
         if browser is None:
@@ -2945,7 +3096,7 @@ class Browser(QMainWindow):
         ScriptletBlocker.inject_scriptlets(browser)
         #extra case for final updates, catchall for url changes after loading a new page, finishing loading a different page, etc
         clean_url = self.UrlManager.normalise_url(True, self.current_browser.url().toString())
-        self.url_bar.setText(clean_url)
+        self.set_url_bar_text(clean_url)
         pass
 
     def update_url_bar_buttons(self, url, browser):
@@ -3009,6 +3160,7 @@ class Browser(QMainWindow):
             self.url_bar.clear()
 
         self.url_bar.selectAll()
+        self.url_bar.setCursorPosition(0)
         super(QLineEdit, self.url_bar).focusInEvent(event)
 
 
@@ -3134,7 +3286,7 @@ class Browser(QMainWindow):
 
     '''Bookmarks System'''
 
-    #needs to create a menu popup that can accept a name input. Use Qsanitiser system to clean user input to keep everything safe
+    #Creates a menu popup that can accept a name input. Use Qsanitiser system to clean user input to keep everything safe
     def add_bookmark(self, url):
         name = self.additionalUIElements.WindowInput(
             "Add Bookmark",
@@ -3599,15 +3751,25 @@ if __name__ == "__main__":
     handoff_path = f"{srcSourceDir}/data/currentProfile.json"
 
     if os.path.exists(handoff_path):
-        
-        print("loading from profile")
-        with open(handoff_path) as f:
-            selectedProfile = json.load(f)
-        
-        os.remove(handoff_path)
 
+        try:
+            print("loading from profile")
+            with open(handoff_path) as f:
+                selectedProfile = json.load(f)
+            
+            os.remove(handoff_path)
+        except:
+            print("Failed to load profile from handoff path. Returning to default launch.")
+            launcher = profileSelectUI()
+            show_boot_splash()
+    
+            if launcher.exec() != QDialog.Accepted:
+                sys.exit(0)
+    
+            selectedProfile = launcher.getSelectedConfig()
     else:
         launcher = profileSelectUI()
+        show_boot_splash()
 
         if launcher.exec() != QDialog.Accepted:
             sys.exit(0)
@@ -3628,9 +3790,8 @@ if __name__ == "__main__":
     try:
         window = Browser(profile_config=selectedProfile)
     except Exception:
-        import traceback
+        print("CRITICAL ERROR")
         traceback.print_exc()
-        input("Press Enter...")
         raise
 
     print("Browser created")

@@ -26,5 +26,6 @@
     "DeGoogler": false,
     "Dns-Fallback": true,
     "GPU-Safe-System": true,
+    "Old-Hardware-Rendering": false,
     "Cookie-Auto-Handler": false
 }

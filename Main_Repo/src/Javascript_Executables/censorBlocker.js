@@ -1,5 +1,8 @@
 // censorBlocker.js
 
+console.log("Midnight censor script executed", location.href);
+
+
 const flavourTexts = [
     "Ad Blocker Active. Enjoy painless (but occasionally darkened) viewing!",
     "Ads blocked here (hopefully) still support the creator!",
@@ -19,8 +22,7 @@ const bufferingTexts = "Midnight Watch is automatically fast-forwarding adverts,
 
 
 (() => {
-    // Escape subframes safely to avoid sandbox frame restrictions
-    if (window.self !== window.top || window.location.href === 'about:blank') return;
+    if (window.self !== window.top) return;
     if (window.__ev_censor_loaded__) return;
     window.__ev_censor_loaded__ = true;
 
@@ -42,6 +44,8 @@ const bufferingTexts = "Midnight Watch is automatically fast-forwarding adverts,
     }
 
     let wasAdShowingPreviously = false;
+    let adMuteState = null;
+    let adPlaybackRate = null;
     let overlay = null;
     let layoutWrapper = null;
     let topLeftBadge = null;
@@ -110,21 +114,25 @@ const bufferingTexts = "Midnight Watch is automatically fast-forwarding adverts,
         }
 
         const playerContainer = document.querySelector('.html5-video-player');
-        if (playerContainer && !document.getElementById('ev-ad-blackout-screen')) {
+        const video = playerContainer?.querySelector('video') || document.querySelector('video');
+
+        if (playerContainer && overlay.parentElement !== playerContainer) {
             playerContainer.appendChild(overlay);
         }
 
-        const video = document.querySelector('video');
-        const isAdShowing = playerContainer && (
-            playerContainer.classList.contains('ad-showing') || 
+        const isAdShowing = Boolean(playerContainer && (
+            playerContainer.classList.contains('ad-showing') ||
+            playerContainer.classList.contains('ad-interrupting') ||
             playerContainer.classList.contains('ad-mode') ||
-            document.querySelector('.ytp-ad-player-overlay') !== null
-        );
+            playerContainer.querySelector('.ytp-ad-skip-button, .ytp-ad-message-container') ||
+            document.querySelector('.ytp-ad-player-overlay')
+        ));
 
         if (video) {
             if (isAdShowing) {
-                console.log("AD PLAYING!!! GETTEM BOYS!")
                 if (!wasAdShowingPreviously) {
+                    adMuteState = video.muted;
+                    adPlaybackRate = video.playbackRate;
                     layoutWrapper.replaceChildren(); 
                     topLeftBadge.replaceChildren();
 
@@ -177,9 +185,11 @@ const bufferingTexts = "Midnight Watch is automatically fast-forwarding adverts,
 
             } else {
                 overlay.style.display = 'none';
-                if (video.playbackRate === 16.0) {
-                    video.playbackRate = 1.0;
-                    video.muted = false;
+                if (wasAdShowingPreviously) {
+                    if (adPlaybackRate !== null) video.playbackRate = adPlaybackRate;
+                    if (adMuteState !== null) video.muted = adMuteState;
+                    adPlaybackRate = null;
+                    adMuteState = null;
                 }
                 wasAdShowingPreviously = false;
             }

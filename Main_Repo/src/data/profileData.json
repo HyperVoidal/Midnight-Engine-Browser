@@ -4,9 +4,9 @@
         "photoURL": "ui/profile_icons/default.png",
         "saved_tabs": {},
         "saved_bookmarks": {
-            "f427596c-b7c2-4ed3-8add-4bd71abfd36e": {
-                "name": "test27 - Brave Search",
-                "url": "https://search.brave.com/search?q=test27"
+            "94fdf709-cc7a-45d7-99bd-b83ff8ca1a7f": {
+                "name": "Example Search",
+                "url": "https://www.google.com/search?q=Example+Search&q=Example+Search"
             }
         },
         "stored_data": {
@@ -37,6 +37,7 @@
             "DeGoogler": false,
             "Dns-Fallback": true,
             "GPU-Safe-System": true,
+            "Old-Hardware-Rendering": false,
             "Cookie-Auto-Handler": false
         }
     },
@@ -78,6 +79,7 @@
             "DeGoogler": false,
             "Dns-Fallback": false,
             "GPU-Safe-System": true,
+            "Old-Hardware-Rendering": false,
             "Cookie-Auto-Handler": true
         }
     },
@@ -115,6 +117,7 @@
             "DeGoogler": true,
             "Dns-Fallback": true,
             "GPU-Safe-System": true,
+            "Old-Hardware-Rendering": false,
             "Cookie-Auto-Handler": false
         }
     }
